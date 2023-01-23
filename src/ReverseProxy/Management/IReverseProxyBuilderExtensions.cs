@@ -22,6 +22,7 @@ internal static class IReverseProxyBuilderExtensions
 {
     public static IReverseProxyBuilder AddConfigBuilder(this IReverseProxyBuilder builder)
     {
+        builder.Services.TryAddSingleton<IYarpRateLimiterPolicyProvider, YarpRateLimiterPolicyProvider>();
         builder.Services.TryAddSingleton<IConfigValidator, ConfigValidator>();
         builder.Services.TryAddSingleton<IRandomFactory, RandomFactory>();
         builder.AddTransformFactory<ForwardedTransformFactory>();
@@ -86,6 +87,8 @@ internal static class IReverseProxyBuilderExtensions
         });
         builder.Services.TryAddEnumerable(new[] {
             ServiceDescriptor.Singleton<ISessionAffinityPolicy, CookieSessionAffinityPolicy>(),
+            ServiceDescriptor.Singleton<ISessionAffinityPolicy, HashCookieSessionAffinityPolicy>(),
+            ServiceDescriptor.Singleton<ISessionAffinityPolicy, ArrCookieSessionAffinityPolicy>(),
             ServiceDescriptor.Singleton<ISessionAffinityPolicy, CustomHeaderSessionAffinityPolicy>()
         });
         builder.AddTransforms<AffinitizeTransformProvider>();

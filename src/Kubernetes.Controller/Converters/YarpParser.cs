@@ -84,7 +84,7 @@ internal static class YarpParser
         {
             foreach (var port in subset.Ports ?? Enumerable.Empty<Corev1EndpointPort>())
             {
-                if (!MatchesPort(port, servicePort?.TargetPort))
+                if (!MatchesPort(port, servicePort))
                 {
                     continue;
                 }
@@ -101,9 +101,12 @@ internal static class YarpParser
                         Headers = ingressContext.Options.RouteHeaders
                     },
                     ClusterId = cluster.ClusterId,
-                    RouteId = $"{ingressContext.Ingress.Metadata.Name}.{ingressContext.Ingress.Metadata.NamespaceProperty}:{path.Path}",
+                    RouteId = $"{ingressContext.Ingress.Metadata.Name}.{ingressContext.Ingress.Metadata.NamespaceProperty}:{host}{path.Path}",
                     Transforms = ingressContext.Options.Transforms,
                     AuthorizationPolicy = ingressContext.Options.AuthorizationPolicy,
+#if NET7_0_OR_GREATER
+                    RateLimiterPolicy = ingressContext.Options.RateLimiterPolicy,
+#endif
                     CorsPolicy = ingressContext.Options.CorsPolicy,
                     Metadata = ingressContext.Options.RouteMetadata,
                     Order = ingressContext.Options.RouteOrder,
@@ -171,16 +174,22 @@ internal static class YarpParser
 
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/backend-protocol", out var http))
         {
-        	options.Https = http.Equals("https", StringComparison.OrdinalIgnoreCase);
+            options.Https = http.Equals("https", StringComparison.OrdinalIgnoreCase);
         }
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/transforms", out var transforms))
         {
-            options.Transforms = YamlDeserializer.Deserialize<List<Dictionary<string,string>>>(transforms);
+            options.Transforms = YamlDeserializer.Deserialize<List<Dictionary<string, string>>>(transforms);
         }
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/authorization-policy", out var authorizationPolicy))
         {
             options.AuthorizationPolicy = authorizationPolicy;
         }
+#if NET7_0_OR_GREATER
+        if (annotations.TryGetValue("yarp.ingress.kubernetes.io/rate-limiter-policy", out var rateLimiterPolicy))
+        {
+            options.RateLimiterPolicy = rateLimiterPolicy;
+        }
+#endif
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/cors-policy", out var corsPolicy))
         {
             options.CorsPolicy = corsPolicy;
@@ -229,17 +238,17 @@ internal static class YarpParser
         return options;
     }
 
-    private static bool MatchesPort(Corev1EndpointPort port1, IntstrIntOrString port2)
+    private static bool MatchesPort(Corev1EndpointPort port1, V1ServicePort port2)
     {
-        if (port1 is null || port2 is null)
+        if (port1 is null || port2?.TargetPort is null)
         {
             return false;
         }
-        if (int.TryParse(port2, out var port2Number) && port2Number == port1.Port)
+        if (int.TryParse(port2.TargetPort, out var port2Number) && port2Number == port1.Port)
         {
             return true;
         }
-        if (string.Equals(port2, port1.Name, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(port2.Name, port1.Name, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
